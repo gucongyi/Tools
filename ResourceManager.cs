@@ -57,14 +57,37 @@ public class ResourceManager : UnitySingleton<ResourceManager>
 
     public static void LoadResourceAsync(string prefabName, System.Action<float> progress = null, System.Action<GameObject> completed = null,string path= "UI")
     {
+        if (loadList.Contains(prefabName))
+        {//表示正在加载
+            return;
+        }
+        if (ResourceCacheDic.ContainsKey(prefabName))
+        {
+            if (completed != null)
+            {
+                GameObject initGo = null;
+                if (ResourceCacheDic.TryGetValue(prefabName, out initGo))
+                {
+                    Debug.Assert(initGo != null);
+                    completed(initGo);
+                }
+            }
+            return;
+        }
+        if (!loadList.Contains(prefabName))
+        {
+            loadList.Add(prefabName);
+        }
         string fullPath = Path.Combine(path, prefabName);
-        AppController.mInstance.StartCoroutine(LoadResourceCorotine(fullPath, progress, completed));
+        AppController.mInstance.StartCoroutine(LoadResourceCorotine(prefabName,fullPath, progress, completed));
 
     }
 
-    static IEnumerator LoadResourceCorotine(string fullPath, System.Action<float> progress = null, System.Action<GameObject> completed = null)
-    {
+    private static Dictionary<string,GameObject> ResourceCacheDic=new Dictionary<string, GameObject>();
+    private static List<string> loadList = new List<string>();
 
+    static IEnumerator LoadResourceCorotine(string prefabName,string fullPath, System.Action<float> progress = null, System.Action<GameObject> completed = null)
+    {
         ResourceRequest request = Resources.LoadAsync(fullPath);
         float displayProgress = 0.05f;
         while (!request.isDone)
@@ -76,11 +99,20 @@ public class ResourceManager : UnitySingleton<ResourceManager>
             }
             yield return new WaitForEndOfFrame();
         }
+        if (loadList.Contains(prefabName))
+        {//加载完成出队
+            loadList.Remove(prefabName);
+        }
         if (completed != null)
         {
             Debug.Assert(request.asset != null);
             GameObject initGo = Object.Instantiate(request.asset) as GameObject;
+            if (!ResourceCacheDic.ContainsKey(prefabName))
+            {
+                ResourceCacheDic.Add(prefabName, initGo);
+            }
             completed(initGo);
         }
+        
     }
 }
